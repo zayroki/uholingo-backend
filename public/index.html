@@ -1,0 +1,596 @@
+<html>
+
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Telegram App</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 24px;
+      border-radius: 16px;
+      text-align: center;
+      width: 90%;
+      max-width: 300px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    h1 {
+      margin-bottom: 10px;
+    }
+
+    .status {
+      margin-top: 10px;
+      font-size: 14px;
+      opacity: 0.8;
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 10px;
+      background: #3b82f6;
+      color: white;
+      font-size: 14px;
+    }
+
+    .screen {
+      display: none;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    /* Игровой экран */
+    .game-controls {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .game-controls button {
+      margin-top: 0;
+    }
+
+    .btn-target {
+      font-size: 20px;
+      padding: 10px 20px;
+      background: #475569;
+      /* Сделано серым по умолчанию */
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .btn-target.active-target {
+      background: #facc15;
+      color: black;
+      box-shadow: 0 0 10px #facc15;
+    }
+
+    .btn-choice {
+      padding: 10px 24px;
+      background: #475569;
+    }
+
+    .btn-choice.selected {
+      background: #22c55e;
+      box-shadow: 0 0 10px #22c55e;
+    }
+
+    .btn-confirm {
+      width: 100%;
+      background: #3b82f6;
+      margin-top: 20px;
+    }
+
+    .btn-confirm:disabled {
+      background: #64748b;
+      cursor: not-allowed;
+    }
+
+    #bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      display: none;
+      /* по умолчанию полностью скрыто */
+      justify-content: space-around;
+      background: #1e293b;
+      padding: 10px 0;
+      border-top: 1px solid #334155;
+    }
+
+    #bottom-nav.visible {
+      display: flex;
+    }
+
+    #bottom-nav button {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 20px;
+    }
+
+    .result-banner {
+      margin-bottom: 10px;
+      padding: 10px;
+      border-radius: 10px;
+      font-weight: bold;
+    }
+
+    .result-banner.correct {
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+    }
+
+    .result-banner.wrong {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Аудиоплеер для работы звука в Telegram -->
+  <audio id="audioPlayer" preload="auto" crossorigin="anonymous"></audio>
+
+  <!-- Экран 1: Приветствие -->
+  <div id="screen-1" class="screen card">
+    <h1>🚀 Привет!</h1>
+    <div id="user">Загрузка...</div>
+    <div id="status" class="status"></div>
+
+    <button onclick="nextScreen(2)">Далее</button>
+  </div>
+
+  <!-- Экран 2: Краткие правила -->
+  <div id="screen-2" class="screen card">
+    <h1>Что такое %app_name%</h1>
+    <p style="font-size: 14px; text-align: left;">
+      %app_name% — это интерактивный тренажёр, который помогает замечать тонкие различия в звуке.<br><br>
+      Внутри — короткие упражнения с разными аудио-задачами, которые развивают ваш музыкальный слух.
+    </p>
+
+    <button onclick="nextScreen(3)">Понятно</button>
+  </div>
+
+  <!-- Экран 3: Финиш онбординга / Главное меню -->
+  <div id="screen-3" class="screen card">
+    <h1 style="font-size: 24px; margin-bottom: 16px;">Сначала — калибровка 🎛️</h1>
+    <p style="font-size: 14px; text-align: left;">
+      Чтобы подобрать задания под ваш уровень, давайте проверим ваши навыки.<br><br>
+      Вы услышите эталонный звук 🔊, а затем два варианта (A и B).<br><br>
+      Они отличаются только по громкости.<br><br>
+      Ваша задача — выбрать вариант, который совпадает с эталонным звуком.
+    </p>
+
+    <button onclick="startGame()">Начать калибровку</button>
+  </div>
+
+  <!-- Экран 4: Игра (Game Watcher V1) -->
+  <div id="screen-4" class="screen card">
+    <div id="resultBanner" class="result-banner hidden"></div>
+    <h1 id="game-title">Вопрос 1</h1>
+    <p style="font-size: 14px;">Где этот звук? (Слева или справа)</p>
+
+    <!-- Игровые кнопки -->
+    <div class="game-controls">
+      <button id="btn-a" class="btn-choice" onclick="playA()">A</button>
+      <button id="btn-target" class="btn-target" onclick="playTarget()">🔊</button>
+      <button id="btn-b" class="btn-choice" onclick="playB()">B</button>
+    </div>
+
+    <!-- Подтверждение -->
+    <button id="btn-confirm" class="btn-confirm" onclick="confirmAnswer()" disabled>Подтвердить</button>
+  </div>
+
+  <!-- Экран 5: Результат игры -->
+  <div id="screen-5" class="screen card">
+    <h1>Результат</h1>
+    <p id="resultScore" style="font-size: 16px;"></p>
+    <button class="btn-primary" onclick="goToMenu()">Далее</button>
+  </div>
+
+  <!-- Экран 6: Главное меню -->
+  <div id="screen-6" class="screen card">
+    <h1>Главное меню</h1>
+    <p>Выберите раздел снизу</p>
+  </div>
+
+  <!-- Экран 7: Тренировки -->
+  <div id="screen-7" class="screen card">
+    <h1>Тренировки</h1>
+    <button class="btn-primary" onclick="startGame()">Gain Watcher</button>
+    <button class="btn-primary" disabled>EQ Trainer (скоро)</button>
+    <button class="btn-primary" disabled>Compression (скоро)</button>
+  </div>
+
+  <!-- Экран 8: Прогресс -->
+  <div id="screen-8" class="screen card">
+    <h1>Прогресс</h1>
+    <p>Скоро будет доступно</p>
+  </div>
+
+  <!-- Экран 9: Настройки -->
+  <div id="screen-9" class="screen card">
+    <h1>Настройки</h1>
+    <p>Скоро будет доступно</p>
+  </div>
+
+  <!-- Нижняя навигация -->
+  <div id="bottom-nav">
+    <button onclick="openTab('training')">🎧</button>
+    <button onclick="openTab('progress')">📊</button>
+    <button onclick="openTab('settings')">⚙️</button>
+  </div>
+
+  <script>
+    // ===================================
+    // ЛОГИКА ИГРЫ (Game Watcher V1)
+    // ===================================
+
+    function logDebug(msg) {
+      console.log(msg);
+    }
+    const AUDIO_BASE = 'https://cdn.jsdelivr.net/gh/zayroki/audio-cdn@main';
+
+    const rawPairs = [
+      { raw: `${AUDIO_BASE}/audio/gain-watcher/gw_bass001_raw.mp3`, low: `${AUDIO_BASE}/audio/gain-watcher/gw_bass001_low2db.mp3` },
+      { raw: `${AUDIO_BASE}/audio/gain-watcher/gw_bsynth001_raw.mp3`, low: `${AUDIO_BASE}/audio/gain-watcher/gw_bsynth001_low1db.mp3` },
+      { raw: `${AUDIO_BASE}/audio/gain-watcher/gw_bsynth002_raw.mp3`, low: `${AUDIO_BASE}/audio/gain-watcher/gw_bsynth002_low6db.mp3` },
+      { raw: `${AUDIO_BASE}/audio/gain-watcher/gw_drum001_raw.mp3`, low: `${AUDIO_BASE}/audio/gain-watcher/gw_drum001_low6db.mp3` },
+      { raw: `${AUDIO_BASE}/audio/gain-watcher/gw_drum002_raw.mp3`, low: `${AUDIO_BASE}/audio/gain-watcher/gw_drum002_low1.5db.mp3` },
+      { raw: `${AUDIO_BASE}/audio/gain-watcher/gw_drum003_raw.mp3`, low: `${AUDIO_BASE}/audio/gain-watcher/gw_drum003_low1db.mp3` },
+      { raw: `${AUDIO_BASE}/audio/gain-watcher/gw_elgtr001_raw.mp3`, low: `${AUDIO_BASE}/audio/gain-watcher/gw_elgtr001_low1db.mp3` },
+      { raw: `${AUDIO_BASE}/audio/gain-watcher/gw_elgtr002_raw.mp3`, low: `${AUDIO_BASE}/audio/gain-watcher/gw_elgtr002_low6db.mp3` },
+      { raw: `${AUDIO_BASE}/audio/gain-watcher/gw_hh001_raw.mp3`, low: `${AUDIO_BASE}/audio/gain-watcher/gw_hh001_low2db.mp3` },
+      { raw: `${AUDIO_BASE}/audio/gain-watcher/gw_sax001_raw.mp3`, low: `${AUDIO_BASE}/audio/gain-watcher/gw_sax001_low3db.mp3` }
+    ];
+
+    const tracks = rawPairs.map(pair => {
+      const isRawA = Math.random() > 0.5;
+      const target = Math.random() > 0.5 ? 'A' : 'B';
+
+      return {
+        fileA: isRawA ? pair.raw : pair.low,
+        fileB: isRawA ? pair.low : pair.raw,
+        target: target,
+        correctAnswer: target
+      };
+    });
+
+    let currentTrackIndex = 0;
+    let currentTrack = null;
+    let selectedAnswer = null;
+    let isLocked = false;
+    
+    let calibrationStats = { correctCount: 0, total: 0 };
+    let trainingStats = { correctCount: 0, total: 0 };
+    let isCalibrationMode = false;
+
+    // Переменные для HTML5 Audio
+    let currentAudio = null;
+    let isPlaying = false;
+    let lastPlayTime = 0;
+
+    function canPlayNow() {
+      const now = Date.now();
+      if (now - lastPlayTime < 200) return false;
+      lastPlayTime = now;
+      return true;
+    }
+
+    function stopSound() {
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+        currentAudio = null;
+      }
+    }
+
+    function playSound(url, loop = true) {
+      stopSound();
+
+      const audio = new Audio(url);
+      audio.loop = loop;
+
+      const playPromise = audio.play();
+
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            logDebug('▶️ Playing: ' + url.split('/').pop());
+          })
+          .catch(err => {
+            logDebug('❌ Play failed: ' + err.message);
+          });
+      }
+
+      currentAudio = audio;
+    }
+
+    async function startGame() {
+      fetch(`${AUDIO_BASE}/audio/gain-watcher/gw_bass001_raw.mp3`)
+        .then(res => {
+          logDebug('FETCH STATUS: ' + res.status);
+        })
+        .catch(err => {
+          logDebug('FETCH ERROR: ' + err.message);
+        });
+
+      isCalibrationMode = localStorage.getItem('calibration_done') !== 'true';
+      if (isCalibrationMode) {
+        calibrationStats = { correctCount: 0, total: tracks.length };
+      } else {
+        trainingStats = { correctCount: 0, total: tracks.length };
+      }
+
+      currentTrackIndex = 0;
+      nextScreen(4);
+      await nextQuestion();
+    }
+
+    async function nextQuestion() {
+      stopSound();
+
+      if (currentTrackIndex >= tracks.length) {
+        showFinalScreen();
+        return;
+      }
+
+      currentTrack = tracks[currentTrackIndex];
+      selectedAnswer = null;
+
+      // Сброс UI
+      document.getElementById('btn-a').classList.remove('selected');
+      document.getElementById('btn-b').classList.remove('selected');
+      document.getElementById('btn-target').classList.remove('active-target');
+      document.getElementById('btn-confirm').disabled = true;
+
+      document.getElementById('game-title').innerText = `Вопрос ${currentTrackIndex + 1} / ${tracks.length}`;
+    }
+
+    function playA() {
+      if (!canPlayNow()) return;
+      logDebug('CLICK A');
+      selectAnswer('A');
+      playSound(currentTrack.fileA);
+    }
+
+    function playB() {
+      if (!canPlayNow()) return;
+      logDebug('CLICK B');
+      selectAnswer('B');
+      playSound(currentTrack.fileB);
+    }
+
+    function playTarget() {
+      if (!canPlayNow()) return;
+      logDebug('CLICK TARGET');
+      selectAnswer('TARGET'); // Выделяем таргет и снимаем выделение с A/B
+      if (!currentTrack) return;
+
+      const url = currentTrack.target === 'A'
+        ? currentTrack.fileA
+        : currentTrack.fileB;
+
+      playSound(url);
+    }
+
+    function selectAnswer(ans) {
+      if (ans === 'TARGET') {
+        selectedAnswer = null;
+        document.getElementById('btn-a').classList.remove('selected');
+        document.getElementById('btn-b').classList.remove('selected');
+        document.getElementById('btn-target').classList.add('active-target');
+        document.getElementById('btn-confirm').disabled = true;
+      } else {
+        selectedAnswer = ans;
+        document.getElementById('btn-a').classList.toggle('selected', ans === 'A');
+        document.getElementById('btn-b').classList.toggle('selected', ans === 'B');
+        document.getElementById('btn-target').classList.remove('active-target');
+        document.getElementById('btn-confirm').disabled = false;
+      }
+    }
+
+    function showFinalScreen() {
+      stopSound();
+      
+      if (isCalibrationMode) {
+        document.getElementById('resultScore').innerText = `Калибровка (правильных ответов): ${calibrationStats.correctCount} из ${calibrationStats.total}`;
+        localStorage.setItem('calibration_done', 'true');
+        isCalibrationMode = false;
+      } else {
+        document.getElementById('resultScore').innerText = `Тренировка (правильных ответов): ${trainingStats.correctCount} из ${trainingStats.total}`;
+      }
+      
+      nextScreen(5);
+    }
+
+    function restartGame() {
+      if (isCalibrationMode) {
+        calibrationStats = { correctCount: 0, total: tracks.length };
+      } else {
+        trainingStats = { correctCount: 0, total: tracks.length };
+      }
+      currentTrackIndex = 0;
+      nextScreen(4);
+      nextQuestion();
+    }
+
+    function goToMenu() {
+      nextScreen(6);
+    }
+
+    function openTab(tab) {
+      if (tab === 'training') nextScreen(7);
+      if (tab === 'progress') nextScreen(8);
+      if (tab === 'settings') nextScreen(9);
+    }
+
+    function showResult(isCorrect) {
+      const banner = document.getElementById('resultBanner');
+
+      banner.classList.remove('hidden', 'correct', 'wrong');
+
+      if (isCorrect) {
+        banner.classList.add('correct');
+        banner.textContent = 'Правильно';
+      } else {
+        banner.classList.add('wrong');
+        banner.textContent = 'Неправильно';
+      }
+
+      setTimeout(() => {
+        banner.classList.add('hidden');
+        nextQuestion();
+        isLocked = false;
+      }, 1000);
+    }
+
+    async function confirmAnswer() {
+      if (isLocked) return;
+      isLocked = true;
+
+      if (!selectedAnswer) {
+        isLocked = false;
+        return;
+      }
+
+      stopSound();
+
+      const isCorrect = selectedAnswer === currentTrack.correctAnswer;
+      if (isCorrect) {
+        if (isCalibrationMode) {
+          calibrationStats.correctCount++;
+        } else {
+          trainingStats.correctCount++;
+        }
+      }
+      showResult(isCorrect);
+
+      currentTrackIndex++;
+    }
+    // ===================================
+
+    // Переключение экранов
+    function nextScreen(screenId) {
+      const isCompleted = localStorage.getItem('calibration_done');
+
+      if (screenId >= 6 && isCompleted !== 'true') {
+        // запрещаем доступ к меню до калибровки
+        screenId = 1;
+      }
+
+      document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+      document.getElementById('screen-' + screenId).classList.add('active');
+
+      const nav = document.getElementById('bottom-nav');
+
+      if (nav) {
+        if (isCompleted === 'true' && screenId >= 6) {
+          nav.classList.add('visible');
+        } else {
+          nav.classList.remove('visible');
+        }
+      }
+
+      if (screenId === 3) {
+        const user = window.Telegram.WebApp.initDataUnsafe.user;
+        if (user) {
+          fetch('/onboarding-complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ telegramId: String(user.id) })
+          });
+        }
+      }
+    }
+
+    const user = window.Telegram.WebApp.initDataUnsafe.user || {
+      id: 123456,
+      username: 'test_user',
+      first_name: 'Test'
+    };
+
+    if (user) {
+      fetch('/auth/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegramId: String(user.id),
+          nickname: user.username || user.first_name
+        })
+      })
+        .then(res => res.json())
+        .then(data => {
+          console.log(data);
+
+          if (data.isNew) {
+            localStorage.removeItem('calibration_done');
+          }
+
+          const isNewText = data.isNew
+            ? 'Новый пользователь 🚀'
+            : 'С возвращением 👌';
+
+          document.getElementById('user').innerText =
+            user.username || user.first_name;
+
+          document.getElementById('status').innerText = isNewText;
+
+          const isCompleted = localStorage.getItem('calibration_done');
+
+          if (isCompleted === 'true') {
+            nextScreen(6);
+          } else {
+            nextScreen(1);
+          }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const nav = document.getElementById('bottom-nav');
+      if (nav) {
+        nav.classList.remove('visible');
+      }
+    });
+  </script>
+  <script>
+    if (window.Telegram && window.Telegram.WebApp) {
+      const tgInit = window.Telegram.WebApp;
+      tgInit.expand();
+      tgInit.ready();
+    }
+  </script>
+</body>
+
+</html>
