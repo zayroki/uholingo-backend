@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsup src/server.ts --format esm --target es2022 --clean",
+    "typecheck": "tsc --noEmit",
     "start": "node dist/server.js",
     "lint": "tsc --noEmit",
     "db:generate": "drizzle-kit generate:pg",
@@ -22,6 +23,7 @@
   "devDependencies": {
     "@types/node": "^20.11.30",
     "@types/node-telegram-bot-api": "^0.64.14",
+    "tsup": "^8.0.2",
     "tsx": "^4.7.1",
     "typescript": "^5.4.5"
   }

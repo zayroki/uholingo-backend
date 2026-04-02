@@ -197,3 +197,17 @@ bot.on('message', async (msg: any) => {
     },
   });
 });
+
+const gracefulShutdown = async (signal: string) => {
+  console.log(`Received ${signal}. Shutting down gracefully...`);
+  try {
+    bot.stopPolling();
+    process.exit(0);
+  } catch (err) {
+    console.error('Error during shutdown:', err);
+    process.exit(1);
+  }
+};
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
